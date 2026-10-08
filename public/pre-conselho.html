@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ficha de Pré-Conselho — Sistema Escolar</title>
+  <meta name="description" content="Sistema Escolar Integrado de Pré-Conselho de Classe.">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18, ReactDOM & Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Firebase Compat CDN -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <style>
+    @media print {
+      body { background: #fff !important; font-size: 11pt; }
+      .no-print { display: none !important; }
+      .print-break { page-break-after: always; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen antialiased selection:bg-blue-200 selection:text-blue-900">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // --- Configuração do Firebase ---
+    const firebaseConfig = {
+      projectId: "graphite-library-s224x",
+      appId: "1:726348293866:web:04633285eee6cbb721d993",
+      apiKey: "AIzaSyD0VF4pd06XiecFStU8Sx57HJkmMDurK9M",
+      authDomain: "graphite-library-s224x.firebaseapp.com",
+      firestoreDatabaseId: "ai-studio-fichadeprconselh-70a55d5f-37f7-432d-938f-2a9eef1b8128"
+    };
+
+    let db = null;
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+      db = firebase.app().firestore(firebaseConfig.firestoreDatabaseId || undefined);
+    } catch (e) {
+      console.warn("Modo LocalStorage / Offline:", e);
+    }
+
+    const GRADES = ['6°', '7°', '8°', '9°', '1°', '2°', '3°'];
+    const LETTERS = ['A', 'B', 'C', 'D', 'E'];
+
+    const defaultQuestions = [
+      { id: 'q1', section: 'Panorama da Turma', text: 'Avaliação do desenvolvimento geral da turma em relação à aprendizagem' },
+      { id: 'q2', section: 'Panorama da Turma', text: 'Nível de participação, envolvimento e postura dos estudantes nas aulas' },
+      { id: 'q3', section: 'Aprendizagem e Frequência', text: 'Principais conteúdos e habilidades que apresentam maior dificuldade para a turma' },
+      { id: 'q4', section: 'Aprendizagem e Frequência', text: 'Estudantes com baixa frequência ou que necessitam de acompanhamento prioritário' },
+      { id: 'q5', section: 'Destaques e Atenção', text: 'Estudantes que se destacaram positivamente (participação, liderança ou rendimento)' },
+      { id: 'q6', section: 'Destaques e Atenção', text: 'Estudantes com dificuldades acentuadas necessitando de intervenção imediata' },
+      { id: 'q7', section: 'Encaminhamentos', text: 'Ações pedagógicas já realizadas e novas propostas para o período' },
+      { id: 'q8', section: 'Encaminhamentos', text: 'Observações complementares relevantes para o Conselho de Classe' },
+      { id: 'q9', section: 'Síntese do Professor', text: 'Síntese geral do docente sobre a turma' }
+    ];
+
+    // --- Ícones SVG em Linha ---
+    const Icon = ({ name, className = "w-4 h-4 inline-block" }) => {
+      const paths = {
+        school: <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l9-5-9-5-9 5 9 5zM12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zM12 14v7" />,
+        logout: <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />,
+        printer: <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />,
+        trash: <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />,
+        check: <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />,
+        search: <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />,
+        eye: <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />,
+        save: <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />,
+        users: <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+      };
+      return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+          {paths[name]}
+        </svg>
+      );
+    };
+
+    function App() {
+      const [role, setRole] = useState(null);
+      const [currentTeacher, setCurrentTeacher] = useState(null);
+      const [teachers, setTeachers] = useState([]);
+      const [questions, setQuestions] = useState(defaultQuestions);
+      const [reports, setReports] = useState([]);
+
+      const [loginRole, setLoginRole] = useState('director');
+      const [loginPass, setLoginPass] = useState('');
+      const [loginTeacherId, setLoginTeacherId] = useState('');
+      const [errorMsg, setErrorMsg] = useState('');
+
+      useEffect(() => {
+        const lt = localStorage.getItem('pre_conselho_teachers');
+        if (lt) setTeachers(JSON.parse(lt));
+        const lq = localStorage.getItem('pre_conselho_questions');
+        if (lq) setQuestions(JSON.parse(lq));
+        const lr = localStorage.getItem('pre_conselho_reports');
+        if (lr) setReports(JSON.parse(lr));
+
+        if (db) {
+          const uT = db.collection('teachers').onSnapshot(snap => {
+            if (!snap.empty) {
+              const list = snap.docs
+                .filter(d => d.id !== 'prof-1' && !(d.data().name || '').toLowerCase().includes('padrão'))
+                .map(d => ({ id: d.id, ...d.data() }));
+              setTeachers(list);
+              localStorage.setItem('pre_conselho_teachers', JSON.stringify(list));
+            }
+          }, e => console.log(e));
+
+          const uQ = db.collection('questions').onSnapshot(snap => {
+            if (!snap.empty) {
+              const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+              list.sort((a, b) => (a.order || 0) - (b.order || 0));
+              setQuestions(list);
+              localStorage.setItem('pre_conselho_questions', JSON.stringify(list));
+            }
+          }, e => console.log(e));
+
+          const uR = db.collection('reports').onSnapshot(snap => {
+            const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            list.sort((a, b) => (b.createdAt || b.date || '').localeCompare(a.createdAt || a.date || ''));
+            setReports(list);
+            localStorage.setItem('pre_conselho_reports', JSON.stringify(list));
+          }, e => console.log(e));
+
+          return () => { uT(); uQ(); uR(); };
+        }
+      }, []);
+
+      const addTeacher = async (name, password = '123') => {
+        const item = { id: 'prof_' + Date.now(), name, password };
+        const next = [...teachers, item];
+        setTeachers(next);
+        localStorage.setItem('pre_conselho_teachers', JSON.stringify(next));
+        if (db) try { await db.collection('teachers').doc(item.id).set(item); } catch (e) {}
+      };
+
+      const deleteTeacher = async (id) => {
+        const next = teachers.filter(t => t.id !== id);
+        setTeachers(next);
+        localStorage.setItem('pre_conselho_teachers', JSON.stringify(next));
+        if (db) try { await db.collection('teachers').doc(id).delete(); } catch (e) {}
+      };
+
+      const addQuestion = async (section, text) => {
+        const item = { id: 'q_' + Date.now(), section, text, order: Date.now() };
+        const next = [...questions, item];
+        setQuestions(next);
+        localStorage.setItem('pre_conselho_questions', JSON.stringify(next));
+        if (db) try { await db.collection('questions').doc(item.id).set(item); } catch (e) {}
+      };
+
+      const deleteQuestion = async (id) => {
+        const next = questions.filter(q => q.id !== id);
+        setQuestions(next);
+        localStorage.setItem('pre_conselho_questions', JSON.stringify(next));
+        if (db) try { await db.collection('questions').doc(id).delete(); } catch (e) {}
+      };
+
+      const addReport = async (rep) => {
+        const item = { ...rep, id: 'rep_' + Date.now(), createdAt: new Date().toISOString() };
+        const next = [item, ...reports];
+        setReports(next);
+        localStorage.setItem('pre_conselho_reports', JSON.stringify(next));
+        if (db) try { await db.collection('reports').doc(item.id).set(item); } catch (e) {}
+      };
+
+      const deleteReport = async (id) => {
+        const next = reports.filter(r => r.id !== id);
+        setReports(next);
+        localStorage.setItem('pre_conselho_reports', JSON.stringify(next));
+        if (db) try { await db.collection('reports').doc(id).delete(); } catch (e) {}
+      };
+
+      const clearAllReports = async () => {
+        setReports([]);
+        localStorage.setItem('pre_conselho_reports', JSON.stringify([]));
+        if (db) {
+          try {
+            const snap = await db.collection('reports').get();
+            const b = db.batch();
+            snap.docs.forEach(doc => b.delete(doc.ref));
+            await b.commit();
+          } catch (e) {}
+        }
+      };
+
+      const handleLogin = (e) => {
+        e.preventDefault();
+        setErrorMsg('');
+        if (loginRole === 'director') {
+          if (loginPass === '123') setRole('director');
+          else setErrorMsg('Senha da direção incorreta (Padrão: 123)');
+        } else {
+          const t = teachers.find(item => item.id === loginTeacherId);
+          if (!t) { setErrorMsg('Selecione um professor.'); return; }
+          if (loginPass === '123' || t.password === loginPass) {
+            setCurrentTeacher(t);
+            setRole('teacher');
+          } else setErrorMsg('Senha incorreta.');
+        }
+      };
+
+      // TELA DE LOGIN
+      if (!role) {
+        return (
+          <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50">
+            <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-blue-100 p-6 sm:p-8 space-y-6">
+              <div className="text-center space-y-2">
+                <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto shadow-md">
+                  <Icon name="school" className="w-8 h-8" />
+                </div>
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">Ficha de Pré-Conselho</h1>
+                <p className="text-xs text-slate-500">Sistema Escolar Integrado de Acompanhamento de Turmas</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => { setLoginRole('director'); setErrorMsg(''); }}
+                  className={`py-2 rounded-xl text-xs font-bold transition-all ${loginRole === 'director' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600'}`}
+                >
+                  Direção / Coordenação
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setLoginRole('teacher'); setErrorMsg(''); }}
+                  className={`py-2 rounded-xl text-xs font-bold transition-all ${loginRole === 'teacher' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-600'}`}
+                >
+                  Professor(a)
+                </button>
+              </div>
+
+              {errorMsg && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs border border-red-200">{errorMsg}</div>}
+
+              <form onSubmit={handleLogin} className="space-y-4">
+                {loginRole === 'teacher' && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Selecione seu Nome:</label>
+                    {teachers.length === 0 ? (
+                      <p className="text-xs text-amber-700 bg-amber-50 p-3 rounded-xl border border-amber-200">
+                        Nenhum professor cadastrado ainda. A direção pode cadastrar professores no Painel da Direção (senha: 123).
+                      </p>
+                    ) : (
+                      <select
+                        required
+                        value={loginTeacherId}
+                        onChange={e => setLoginTeacherId(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                      >
+                        <option value="">Selecione um professor...</option>
+                        {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">Senha de Acesso:</label>
+                  <input
+                    type="password"
+                    required
+                    value={loginPass}
+                    onChange={e => setLoginPass(e.target.value)}
+                    placeholder="Digite a senha (padrão: 123)"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                  />
+                  <p className="text-[11px] text-slate-400">Senha padrão para acesso: <strong>123</strong></p>
+                </div>
+
+                <button
+                  type="submit"
+                  className={`w-full py-3 rounded-xl text-white font-bold text-sm shadow-md transition-all ${loginRole === 'director' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                >
+                  Entrar no Painel
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+      }
+
+      // PAINEL DO PROFESSOR
+      if (role === 'teacher') {
+        return (
+          <TeacherView
+            teacher={currentTeacher}
+            questions={questions}
+            onSave={addReport}
+            onLogout={() => { setRole(null); setCurrentTeacher(null); setLoginPass(''); }}
+          />
+        );
+      }
+
+      // PAINEL DA DIREÇÃO
+      return (
+        <DirectorView
+          teachers={teachers}
+          questions={questions}
+          reports={reports}
+          onAddTeacher={addTeacher}
+          onDeleteTeacher={deleteTeacher}
+          onAddQuestion={addQuestion}
+          onDeleteQuestion={deleteQuestion}
+          onDeleteReport={deleteReport}
+          onClearAllReports={clearAllReports}
+          onLogout={() => { setRole(null); setLoginPass(''); }}
+        />
+      );
+    }
+
+    // --- VIEW: PROFESSOR ---
+    function TeacherView({ teacher, questions, onSave, onLogout }) {
+      const [subject, setSubject] = useState('');
+      const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+      const [grade, setGrade] = useState('6°');
+      const [letter, setLetter] = useState('A');
+      const [answers, setAnswers] = useState({});
+      const [success, setSuccess] = useState(false);
+
+      const grouped = useMemo(() => {
+        const map = {};
+        questions.forEach(q => {
+          const s = q.section || 'Geral';
+          if (!map[s]) map[s] = [];
+          map[s].push(q);
+        });
+        return map;
+      }, [questions]);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!subject.trim()) { alert('Informe a disciplina!'); return; }
+        onSave({
+          teacherId: teacher?.id || 'prof',
+          teacherName: teacher?.name || 'Professor',
+          subject: subject.trim(),
+          className: `${grade} ${letter}`,
+          date,
+          answers
+        });
+        setSuccess(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setTimeout(() => setSuccess(false), 4000);
+      };
+
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col">
+          <header className="bg-white border-b border-emerald-100 sticky top-0 z-30 shadow-xs">
+            <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-emerald-700">
+                <Icon name="school" className="w-6 h-6" />
+                <span className="font-bold text-base sm:text-lg">Painel do Professor</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  Prof(a). {teacher?.name}
+                </span>
+                <button type="button" onClick={onLogout} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800">
+                  <Icon name="logout" /> Sair
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 space-y-6">
+            {success && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-center gap-3">
+                <Icon name="check" className="w-5 h-5 text-emerald-600" />
+                <p className="font-bold text-sm">Relatório enviado com sucesso! Já está registrado para o Pré-Conselho.</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="bg-emerald-50/70 rounded-2xl border border-emerald-200 p-5 space-y-4">
+                <h3 className="font-bold text-emerald-900 text-base border-b border-emerald-200/60 pb-2">1. Informações Gerais da Turma</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Componente Curricular / Disciplina:</label>
+                      <input
+                        type="text"
+                        required
+                        value={subject}
+                        onChange={e => setSubject(e.target.value)}
+                        placeholder="Ex: Língua Portuguesa, Matemática, História..."
+                        className="w-full px-3.5 py-2 rounded-xl border border-emerald-200 bg-white text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Data:</label>
+                      <input
+                        type="date"
+                        required
+                        value={date}
+                        onChange={e => setDate(e.target.value)}
+                        className="w-full px-3.5 py-2 rounded-xl border border-emerald-200 bg-white text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Ano / Série:</span>
+                      <div className="grid grid-cols-7 gap-1">
+                        {GRADES.map(g => (
+                          <button
+                            key={g}
+                            type="button"
+                            onClick={() => setGrade(g)}
+                            className={`py-1.5 rounded-lg text-xs font-bold border ${grade === g ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-slate-700 border-emerald-200'}`}
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Turma (Letra):</span>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {LETTERS.map(l => (
+                          <button
+                            key={l}
+                            type="button"
+                            onClick={() => setLetter(l)}
+                            className={`py-1.5 rounded-lg text-xs font-bold border ${letter === l ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-white text-slate-700 border-emerald-200'}`}
+                          >
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-1">
+                      <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200">
+                        Turma selecionada: {grade} {letter}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {Object.entries(grouped).map(([sectionTitle, list], idx) => (
+                <div key={sectionTitle} className="bg-emerald-50/70 rounded-2xl border border-emerald-200 overflow-hidden">
+                  <div className="bg-emerald-600 text-white px-5 py-3 font-bold text-sm">
+                    {idx + 2}. {sectionTitle}
+                  </div>
+                  <div className="p-5 space-y-4 bg-white">
+                    {list.map((q, qIndex) => (
+                      <div key={q.id} className="space-y-1.5">
+                        <label className="block text-sm font-semibold text-slate-800">{qIndex + 1}. {q.text}</label>
+                        <textarea
+                          rows="3"
+                          value={answers[q.id] || ''}
+                          onChange={e => setAnswers({ ...answers, [q.id]: e.target.value })}
+                          placeholder="Digite aqui as considerações sobre a turma..."
+                          className="w-full p-3 rounded-xl border border-emerald-200 bg-emerald-50/20 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <div className="flex justify-end pt-2 pb-12">
+                <button
+                  type="submit"
+                  className="px-8 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md flex items-center gap-2"
+                >
+                  <Icon name="save" /> Salvar e Enviar Relatório
+                </button>
+              </div>
+            </form>
+          </main>
+        </div>
+      );
+    }
+
+    // --- VIEW: DIREÇÃO ---
+    function DirectorView({
+      teachers, questions, reports,
+      onAddTeacher, onDeleteTeacher, onAddQuestion, onDeleteQuestion,
+      onDeleteReport, onClearAllReports, onLogout
+    }) {
+      const [tab, setTab] = useState('reports');
+      const [expanded, setExpanded] = useState({ '6°': true });
+      const [letters, setLetters] = useState({ '6°':'A', '7°':'A', '8°':'A', '9°':'A', '1°':'A', '2°':'A', '3°':'A' });
+      const [search, setSearch] = useState('');
+      const [modal, setModal] = useState(null);
+
+      const [newTName, setNewTName] = useState('');
+      const [newTPass, setNewTPass] = useState('123');
+      const [newQSec, setNewQSec] = useState('Panorama da Turma');
+      const [newQTxt, setNewQTxt] = useState('');
+
+      const mapReports = useMemo(() => {
+        const m = {};
+        GRADES.forEach(g => {
+          m[g] = {};
+          LETTERS.forEach(l => { m[g][l] = []; });
+        });
+        reports.forEach(r => {
+          const [g, l] = (r.className || '').trim().split(' ');
+          if (m[g] && m[g][l]) m[g][l].push(r);
+        });
+        return m;
+      }, [reports]);
+
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col">
+          <header className="bg-white border-b border-blue-100 sticky top-0 z-30 shadow-xs no-print">
+            <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-blue-600">
+                <Icon name="school" className="w-6 h-6" />
+                <span className="font-bold text-base sm:text-lg text-slate-800">Painel da Direção</span>
+              </div>
+              <button type="button" onClick={onLogout} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 font-medium">
+                <Icon name="logout" /> Sair
+              </button>
+            </div>
+          </header>
+
+          <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-3 no-print overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setTab('reports')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${tab === 'reports' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
+              >
+                Relatórios Salvos por Turmas ({reports.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('teachers')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${tab === 'teachers' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
+              >
+                Professores Cadastrados ({teachers.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('questions')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${tab === 'questions' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
+              >
+                Perguntas Oficiais ({questions.length})
+              </button>
+            </div>
+
+            {/* ABA RELATÓRIOS */}
+            {tab === 'reports' && (
+              <div className="space-y-6">
+                <div className="bg-blue-50/70 p-5 rounded-2xl border border-blue-200 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-lg font-bold text-blue-950">Relatórios Salvos por Turmas</h2>
+                      <p className="text-xs text-slate-600">Consulte relatórios organizados por séries (6° ao 3°) e turmas (A a E).</p>
+                    </div>
+                    {reports.length > 0 && (
+                      <div className="flex items-center gap-2 no-print">
+                        <button
+                          type="button"
+                          onClick={() => { if (confirm('Deseja apagar TODOS os relatórios salvos?')) onClearAllReports(); }}
+                          className="px-3 py-1.5 rounded-xl bg-white text-red-600 border border-red-200 text-xs font-bold hover:bg-red-50 flex items-center gap-1.5"
+                        >
+                          <Icon name="trash" /> Excluir Todos
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative no-print">
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      placeholder="Pesquisar por professor, disciplina ou respostas..."
+                      className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-blue-200 bg-white text-xs sm:text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <div className="absolute left-3 top-3 text-slate-400">
+                      <Icon name="search" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {GRADES.map(grade => {
+                      const isExp = !!expanded[grade];
+                      const activeL = letters[grade] || 'A';
+                      const classReps = (mapReports[grade] && mapReports[grade][activeL]) || [];
+                      const tot = Object.values(mapReports[grade] || {}).reduce((acc, curr) => acc + curr.length, 0);
+
+                      return (
+                        <div key={grade} className="bg-white rounded-2xl border border-blue-200 overflow-hidden">
+                          <div
+                            onClick={() => setExpanded(prev => ({ ...prev, [grade]: !prev[grade] }))}
+                            className="p-4 flex items-center justify-between gap-4 cursor-pointer hover:bg-blue-50/50 transition-colors select-none"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-black flex items-center justify-center text-sm shadow-xs">
+                                {grade}
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-slate-900 text-sm sm:text-base">Turmas do {grade}</h3>
+                                <p className="text-xs text-slate-500">Turmas: A, B, C, D, E</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${tot > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'}`}>
+                                {tot} {tot === 1 ? 'relatório' : 'relatórios'}
+                              </span>
+                              <span className="text-slate-400 text-xs">{isExp ? '▲' : '▼'}</span>
+                            </div>
+                          </div>
+
+                          {isExp && (
+                            <div className="p-4 sm:p-6 bg-slate-50/40 border-t border-slate-100 space-y-5">
+                              <div className="no-print">
+                                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-2">Escolha a Turma do {grade}:</span>
+                                <div className="grid grid-cols-5 gap-2">
+                                  {LETTERS.map(l => {
+                                    const count = (mapReports[grade] && mapReports[grade][l])?.length || 0;
+                                    const isSel = activeL === l;
+                                    return (
+                                      <button
+                                        key={l}
+                                        type="button"
+                                        onClick={() => setLetters(prev => ({ ...prev, [grade]: l }))}
+                                        className={`py-2 px-1 rounded-xl text-center border transition-all ${isSel ? 'bg-blue-600 text-white border-blue-700 shadow-xs' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'}`}
+                                      >
+                                        <div className="font-bold text-xs sm:text-sm">Turma {l}</div>
+                                        <div className={`text-[10px] mt-0.5 ${isSel ? 'text-white' : 'text-slate-500'}`}>{count} rel.</div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              <TurmaReportSection
+                                grade={grade}
+                                letter={activeL}
+                                reports={classReps}
+                                questions={questions}
+                                search={search}
+                                onViewModal={setModal}
+                                onDeleteReport={onDeleteReport}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ABA PROFESSORES */}
+            {tab === 'teachers' && (
+              <div className="space-y-6">
+                <div className="bg-blue-50/70 p-5 rounded-2xl border border-blue-200 space-y-4">
+                  <h3 className="font-bold text-blue-950 text-base">Cadastrar Novo Professor</h3>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (newTName.trim()) { onAddTeacher(newTName.trim(), newTPass.trim() || '123'); setNewTName(''); }
+                    }}
+                    className="flex flex-col sm:flex-row gap-3"
+                  >
+                    <input
+                      type="text"
+                      required
+                      value={newTName}
+                      onChange={e => setNewTName(e.target.value)}
+                      placeholder="Nome completo do professor"
+                      className="flex-1 px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      type="text"
+                      value={newTPass}
+                      onChange={e => setNewTPass(e.target.value)}
+                      placeholder="Senha (padrão: 123)"
+                      className="w-full sm:w-44 px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button type="submit" className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs">
+                      Cadastrar
+                    </button>
+                  </form>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+                  <h4 className="font-bold text-slate-800 text-sm">Professores Cadastrados ({teachers.length})</h4>
+                  <div className="divide-y divide-slate-100">
+                    {teachers.map(t => (
+                      <div key={t.id} className="py-3 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="font-bold text-sm text-slate-800">{t.name}</div>
+                          <div className="text-xs text-slate-400">Senha: {t.password || '123'}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { if (confirm(`Remover o professor ${t.name}?`)) onDeleteTeacher(t.id); }}
+                          className="p-1.5 text-slate-400 hover:text-red-600"
+                        >
+                          <Icon name="trash" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ABA PERGUNTAS */}
+            {tab === 'questions' && (
+              <div className="space-y-6">
+                <div className="bg-blue-50/70 p-5 rounded-2xl border border-blue-200 space-y-4">
+                  <h3 className="font-bold text-blue-950 text-base">Adicionar Nova Pergunta Oficial</h3>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (newQTxt.trim()) { onAddQuestion(newQSec, newQTxt.trim()); setNewQTxt(''); }
+                    }}
+                    className="space-y-3"
+                  >
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Categoria:</label>
+                      <select
+                        value={newQSec}
+                        onChange={e => setNewQSec(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm outline-none"
+                      >
+                        <option value="Panorama da Turma">Panorama da Turma</option>
+                        <option value="Aprendizagem e Frequência">Aprendizagem e Frequência</option>
+                        <option value="Destaques e Atenção">Destaques e Atenção</option>
+                        <option value="Encaminhamentos">Encaminhamentos</option>
+                        <option value="Síntese do Professor">Síntese do Professor</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">Texto da Pergunta:</label>
+                      <textarea
+                        required
+                        rows="2"
+                        value={newQTxt}
+                        onChange={e => setNewQTxt(e.target.value)}
+                        placeholder="Ex: Como a turma se comportou nas atividades práticas?"
+                        className="w-full p-3 rounded-xl border border-slate-300 bg-white text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <button type="submit" className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs">
+                      Adicionar Pergunta
+                    </button>
+                  </form>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+                  <h4 className="font-bold text-slate-800 text-sm">Perguntas Oficiais ({questions.length})</h4>
+                  <div className="divide-y divide-slate-100">
+                    {questions.map((q, idx) => (
+                      <div key={q.id} className="py-3 flex items-start justify-between gap-4">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                            {q.section}
+                          </span>
+                          <p className="text-sm text-slate-800 font-medium">{idx + 1}. {q.text}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { if (confirm('Excluir esta pergunta?')) onDeleteQuestion(q.id); }}
+                          className="p-1.5 text-slate-400 hover:text-red-600 shrink-0"
+                        >
+                          <Icon name="trash" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* MODAL RELATÓRIO INDIVIDUAL */}
+          {modal && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-6 shadow-2xl">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="font-bold text-lg text-slate-900">Relatório — {modal.className}</h3>
+                    <p className="text-xs text-slate-500">
+                      Prof(a). {modal.teacherName} • {modal.subject} • Data: {modal.date || 'Não informada'}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => setModal(null)} className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold">✕</button>
+                </div>
+                <div className="space-y-4">
+                  {questions.map((q, idx) => {
+                    const ans = modal.answers && modal.answers[q.id];
+                    return (
+                      <div key={q.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1">
+                        <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">{q.section}</span>
+                        <h5 className="font-bold text-sm text-slate-800">{idx + 1}. {q.text}</h5>
+                        <p className="text-xs text-slate-700 whitespace-pre-wrap mt-1">{ans || <em className="text-slate-400">Não respondido</em>}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 no-print">
+                  <button type="button" onClick={() => window.print()} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                    <Icon name="printer" /> Imprimir
+                  </button>
+                  <button type="button" onClick={() => setModal(null)} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold">Fechar</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // --- SEÇÃO DE RELATÓRIO DA TURMA ---
+    function TurmaReportSection({ grade, letter, reports, questions, search, onViewModal, onDeleteReport }) {
+      const [mode, setMode] = useState('individual');
+
+      const filtered = useMemo(() => {
+        if (!search.trim()) return reports;
+        const q = search.toLowerCase();
+        return reports.filter(r =>
+          (r.teacherName || '').toLowerCase().includes(q) ||
+          (r.subject || '').toLowerCase().includes(q) ||
+          Object.values(r.answers || {}).some(a => String(a).toLowerCase().includes(q))
+        );
+      }, [reports, search]);
+
+      const categories = useMemo(() => {
+        const order = [];
+        const map = {};
+        questions.forEach(q => {
+          const s = q.section || 'Geral';
+          if (!map[s]) { map[s] = []; order.push(s); }
+          map[s].push(q);
+        });
+        return order.map((name, i) => ({ index: i + 1, name, questions: map[name] }));
+      }, [questions]);
+
+      return (
+        <div className="space-y-4">
+          <div className="bg-white p-4 rounded-2xl border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-black flex items-center justify-center text-sm">
+                {grade} {letter}
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-900 text-base">Turma {grade} {letter}</h4>
+                <p className="text-xs text-slate-500">
+                  {reports.length === 0 ? 'Nenhum relatório salvo ainda para esta turma.' : `${reports.length} relatório(s) enviado(s).`}
+                </p>
+              </div>
+            </div>
+
+            {reports.length > 0 && (
+              <div className="flex items-center gap-2 no-print flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setMode('individual')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold ${mode === 'individual' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+                >
+                  Por Professor Individual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('consolidated')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold ${mode === 'consolidated' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+                >
+                  Visão Consolidada por Categoria
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 flex items-center gap-1.5"
+                >
+                  <Icon name="printer" /> Imprimir
+                </button>
+              </div>
+            )}
+          </div>
+
+          {reports.length === 0 && (
+            <div className="p-8 bg-white rounded-2xl border border-dashed border-slate-200 text-center space-y-2">
+              <h5 className="font-bold text-slate-800 text-sm">Nenhum professor enviou respostas para a Turma {grade} {letter} ainda</h5>
+              <p className="text-xs text-slate-500">Assim que os professores enviarem os formulários, as respostas aparecerão aqui.</p>
+            </div>
+          )}
+
+          {/* MODO INDIVIDUAL */}
+          {reports.length > 0 && mode === 'individual' && (
+            <div className="space-y-3">
+              {filtered.map(r => (
+                <div key={r.id} className="p-4 bg-white rounded-2xl border border-blue-100 flex items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h5 className="font-bold text-sm text-slate-900">Prof(a). {r.teacherName}</h5>
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-blue-600 text-white font-bold">{r.subject}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Data: {r.date || 'Não informada'}</p>
+                  </div>
+                  <div className="flex items-center gap-2 no-print">
+                    <button
+                      type="button"
+                      onClick={() => onViewModal(r)}
+                      className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold flex items-center gap-1"
+                    >
+                      <Icon name="eye" /> Visualizar Relatório
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { if (confirm(`Excluir o relatório de ${r.teacherName} (${r.subject})?`)) onDeleteReport(r.id); }}
+                      className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg"
+                    >
+                      <Icon name="trash" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* MODO CONSOLIDADO */}
+          {reports.length > 0 && mode === 'consolidated' && (
+            <div className="space-y-5">
+              {categories.map(cat => (
+                <div key={cat.name} className="bg-white rounded-2xl border border-blue-200 overflow-hidden">
+                  <div className="bg-blue-600 text-white px-5 py-3 font-bold text-sm flex items-center justify-between">
+                    <span>{cat.index}. {cat.name}</span>
+                    <span className="text-xs opacity-80">{cat.questions.length} perguntas</span>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {cat.questions.map((q, qIndex) => {
+                      const answersForQ = filtered
+                        .map(r => ({
+                          repId: r.id,
+                          teacher: r.teacherName,
+                          subject: r.subject,
+                          date: r.date,
+                          text: (r.answers && r.answers[q.id]) || ''
+                        }))
+                        .filter(item => item.text.trim().length > 0);
+
+                      return (
+                        <div key={q.id} className="p-4 sm:p-5 space-y-3">
+                          <h5 className="font-bold text-sm text-slate-800">{cat.index}.{qIndex + 1} {q.text}</h5>
+                          <div className="space-y-2">
+                            {answersForQ.length === 0 ? (
+                              <p className="text-xs text-slate-400 italic">Nenhum professor registrou resposta para esta pergunta.</p>
+                            ) : (
+                              answersForQ.map(ans => (
+                                <div key={ans.repId} className="p-3 bg-blue-50/40 rounded-xl border border-blue-100 text-xs space-y-1">
+                                  <div className="font-bold text-slate-800 flex items-center gap-2">
+                                    <span>Prof(a). {ans.teacher}</span>
+                                    <span className="px-1.5 py-0.5 rounded bg-blue-600 text-white text-[10px]">{ans.subject}</span>
+                                    {ans.date && <span className="text-slate-400 text-[10px]">• {ans.date}</span>}
+                                  </div>
+                                  <p className="text-slate-700 whitespace-pre-wrap">{ans.text}</p>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

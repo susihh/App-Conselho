@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+/* Scrollbar invisível */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0px;
+  height: 0px;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE e Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+@media print {
+  header, footer, .no-print, button:not(.allow-print) {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+}
+

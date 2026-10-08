@@ -1,0 +1,8 @@
+{
+  "name": "Ficha de Pré-Conselho",
+  "description": "Formulário digital para relatórios de acompanhamento de turmas no Pré-Conselho de Classe.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

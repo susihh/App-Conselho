@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Teacher registered in the school system",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 150 },
+        "password": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "password"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "Evaluation question for the pre-council report form",
+      "type": "object",
+      "properties": {
+        "section": { "type": "string", "maxLength": 150 },
+        "text": { "type": "string", "maxLength": 500 },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["section", "text"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Pre-council evaluation report submitted by a teacher",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string", "maxLength": 100 },
+        "teacherName": { "type": "string", "maxLength": 150 },
+        "subject": { "type": "string", "maxLength": 100 },
+        "className": { "type": "string", "maxLength": 100 },
+        "date": { "type": "string" },
+        "answers": { "type": "object" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["teacherId", "teacherName", "subject", "className", "date", "answers"]
+    },
+    "Config": {
+      "title": "Config",
+      "description": "System settings and credentials",
+      "type": "object",
+      "properties": {
+        "directorPassword": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/teachers/{teacherId}": {
+      "schema": "Teacher",
+      "description": "Collection of teachers in the school"
+    },
+    "/questions/{questionId}": {
+      "schema": "Question",
+      "description": "Collection of form questions created by direction"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Collection of pre-council reports submitted by teachers"
+    },
+    "/settings/{settingId}": {
+      "schema": "Config",
+      "description": "School settings including direction password"
+    }
+  }
+}

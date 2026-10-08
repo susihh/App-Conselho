@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global safety helper
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // Teacher validation
+    function isValidTeacher(data) {
+      return data.keys().hasAll(['name', 'password']) &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 150 &&
+        data.password is string && data.password.size() > 0 && data.password.size() <= 100;
+    }
+
+    // Question validation
+    function isValidQuestion(data) {
+      return data.keys().hasAll(['section', 'text']) &&
+        data.section is string && data.section.size() > 0 && data.section.size() <= 150 &&
+        data.text is string && data.text.size() > 0 && data.text.size() <= 500;
+    }
+
+    // Report validation
+    function isValidReport(data) {
+      return data.keys().hasAll(['teacherId', 'teacherName', 'subject', 'className', 'date', 'answers']) &&
+        data.teacherId is string && data.teacherId.size() > 0 && data.teacherId.size() <= 100 &&
+        data.teacherName is string && data.teacherName.size() > 0 && data.teacherName.size() <= 150 &&
+        data.subject is string && data.subject.size() > 0 && data.subject.size() <= 100 &&
+        data.className is string && data.className.size() > 0 && data.className.size() <= 100 &&
+        data.date is string && data.date.size() > 0 && data.date.size() <= 50 &&
+        data.answers is map;
+    }
+
+    // Teachers collection
+    match /teachers/{teacherId} {
+      allow read: if true;
+      allow create: if isValidId(teacherId) && isValidTeacher(request.resource.data);
+      allow update: if isValidId(teacherId) && isValidTeacher(request.resource.data);
+      allow delete: if isValidId(teacherId);
+    }
+
+    // Questions collection
+    match /questions/{questionId} {
+      allow read: if true;
+      allow create: if isValidId(questionId) && isValidQuestion(request.resource.data);
+      allow update: if isValidId(questionId) && isValidQuestion(request.resource.data);
+      allow delete: if isValidId(questionId);
+    }
+
+    // Reports collection
+    match /reports/{reportId} {
+      allow read: if true;
+      allow create: if isValidId(reportId) && isValidReport(request.resource.data);
+      allow update: if isValidId(reportId) && isValidReport(request.resource.data);
+      allow delete: if isValidId(reportId);
+    }
+
+    // Settings collection
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isValidId(settingId);
+    }
+
+    // Connection test document
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Fallback: block all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
